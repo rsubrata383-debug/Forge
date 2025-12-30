@@ -7,9 +7,8 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build:
+  ubuntu:
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v4
     
@@ -20,27 +19,20 @@ jobs:
         update: true
         install: >-
           git make gcc mingw-w64-x86_64-gcc
-          mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config
-        
-    - name: Build
+          mingw-w64-x86_64-winpthreads-git
+          mingw-w64-x86_64-wininet-git
+          mingw-w64-x86_64-pkg-config
+    
+    - name: Build & Test
       shell: msys2 {0}
       run: |
         make clean
         make all
-        
-    - name: Test
-      shell: msys2 {0}
-      run: |
         make test
-        
-    - name: Integration Test
-      shell: msys2 {0}
-      run: |
         make integration
 
   windows:
     runs-on: windows-latest
-    
     steps:
     - uses: actions/checkout@v4
     
@@ -52,7 +44,8 @@ jobs:
         install: >-
           git make gcc mingw-w64-x86_64-gcc
           mingw-w64-x86_64-winpthreads-git
-        
+          mingw-w64-x86_64-wininet-git
+    
     - name: Build & Test
       shell: msys2 {0}
       run: |
