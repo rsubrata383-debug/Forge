@@ -1,13 +1,18 @@
-// framework-core/include/forge_router.h
-#include "forge_router.h"
+#include "../include/forge_router.h"
 #include <string.h>
 
-#ifndef FORGE_ROUTER_H
-#define FORGE_ROUTER_H
-
-// Placeholder router logic (no sockets here)
-void forge_router_init() {
-    // TODO
+const ForgeRoute *forge_match_route(
+    const ForgeRoute *routes,
+    int count,
+    const ForgeHttpRequest *req)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (strcmp(routes[i].method, req->method) == 0 &&
+            strcmp(routes[i].path, req->path) == 0)
+        {
+            return &routes[i];
+        }
+    }
+    return NULL;
 }
-
-#endif

@@ -1,16 +1,20 @@
 #include <stdio.h>
+#include "forge_abi.h"
 #include "forge_server.h"
 
-int main() {
-    // ১. সার্ভার তৈরি করুন (পোর্ট: ৮০৮০, ব্যাকলগ: ১০)
-    // আমরা আগের কোডে 'ForgeServer' এবং 'create_forge_server' নাম দিয়েছিলাম
-    
-    ForgeServer app = create_forge_server(8080, 10);
-    
-    printf("ওয়েবসাইটটি দেখতে ব্রাউজারে যান: http://localhost:8080\n");
+// ✅ C99 ABI check (compile-time failure if wrong version)
+#if FORGE_ABI_VERSION != 1
+#error "Forge ABI v1.0 required (got " #FORGE_ABI_VERSION ")"
+#endif
 
-    // ২. সার্ভারটি রান বা স্টার্ট করুন
-    launch_server(&app);
+int main()
+{
+    setbuf(stdout, NULL);
+    printf("🚀 Forge User App v1.0\n");
+    printf("🌐 Starting HTTP server: http://localhost:8080\n");
+
+    ForgeServer server = create_forge_server(8080, 10);
+    launch_server(&server);
 
     return 0;
 }

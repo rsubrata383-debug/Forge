@@ -1,4 +1,4 @@
-#include "forge_manifest.h"
+#include "../include/forge_manifest.h"
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>

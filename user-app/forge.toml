@@ -1,0 +1,7 @@
+[project]
+name = "user-app"
+version = "1.0.0"
+
+[dependencies]
+ui = "1.0.0"
+db = "^2.0"

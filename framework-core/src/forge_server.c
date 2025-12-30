@@ -1,24 +1,87 @@
 #include "forge_server.h"
+#include "forge_abi.h"
+#include "forge_router.h"
+#include "forge_http.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #else
-    #include <unistd.h>
-    #include <arpa/inet.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 #endif
 
+/* =========================================================
+   ABI
+   ========================================================= */
 
-ForgeServer create_forge_server(int port, int backlog) {
+/* Embed ABI version into the binary */
+const int forge_abi_version = FORGE_ABI_VERSION;
+
+/* =========================================================
+   Route Handlers (forward declarations)
+   ========================================================= */
+
+static void handle_root(const ForgeHttpRequest *req, int client_socket);
+static void handle_health(const ForgeHttpRequest *req, int client_socket);
+static void handle_version(const ForgeHttpRequest *req, int client_socket);
+static void send_404(int client_socket);
+
+/* =========================================================
+   Route Table (FILE SCOPE)
+   ========================================================= */
+
+static const ForgeRoute routes[] = {
+    {"GET", "/", handle_root},
+    {"GET", "/health", handle_health},
+    {"GET", "/api/version", handle_version},
+};
+
+/* =========================================================
+   Route Handlers
+   ========================================================= */
+
+static void handle_root(const ForgeHttpRequest *req, int client_socket)
+{
+    (void)req;
+    forge_send_text(client_socket, "200 OK", "Hello from Forge!\n");
+}
+
+static void handle_health(const ForgeHttpRequest *req, int client_socket)
+{
+    (void)req;
+    forge_send_text(client_socket, "200 OK", "OK\n");
+}
+
+static void handle_version(const ForgeHttpRequest *req, int client_socket)
+{
+    (void)req;
+    forge_send_json(client_socket, "200 OK",
+                    "{ \"name\": \"forge\", \"version\": \"1.0\" }\n");
+}
+
+/* =========================================================
+   Server Creation
+   ========================================================= */
+
+ForgeServer create_forge_server(int port, int backlog)
+{
     ForgeServer server;
+    memset(&server, 0, sizeof(server));
+
     server.port = port;
     server.backlog = backlog;
 
 #ifdef _WIN32
     WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
-        printf("WSAStartup failed\n");
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+    {
+        printf("WSAStartup failed: %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
 #endif
@@ -27,77 +90,102 @@ ForgeServer create_forge_server(int port, int backlog) {
 
 #ifdef _WIN32
     if (server.socket_fd == INVALID_SOCKET)
+    {
+        printf("socket failed: %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
 #else
     if (server.socket_fd < 0)
-#endif
     {
-        perror("Socket failed");
+        perror("socket failed");
         exit(EXIT_FAILURE);
     }
-
-    int opt = 1;
-    setsockopt(
-        server.socket_fd,
-        SOL_SOCKET,
-        SO_REUSEADDR,
-        (const char *)&opt,
-        sizeof(opt)
-    );
+#endif
 
 #ifdef _WIN32
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(port);
-
-    if (bind(server.socket_fd,
-             (struct sockaddr *)&addr,
-             sizeof(addr)) == SOCKET_ERROR) {
-        perror("Bind failed");
+    BOOL opt = TRUE;
+    if (setsockopt(server.socket_fd, SOL_SOCKET, SO_REUSEADDR,
+                   (const char *)&opt, sizeof(opt)) < 0)
+    {
+        printf("setsockopt failed: %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
 #else
-    server.address.sin_family = AF_INET;
-    server.address.sin_addr.s_addr = INADDR_ANY;
-    server.address.sin_port = htons(port);
-
-    if (bind(server.socket_fd,
-             (struct sockaddr *)&server.address,
-             sizeof(server.address)) < 0) {
-        perror("Bind failed");
+    int opt = 1;
+    if (setsockopt(server.socket_fd, SOL_SOCKET, SO_REUSEADDR,
+                   &opt, sizeof(opt)) < 0)
+    {
+        perror("setsockopt failed");
         exit(EXIT_FAILURE);
     }
 #endif
 
-    if (listen(server.socket_fd, backlog) < 0) {
-        perror("Listen failed");
+    server.address.sin_family = AF_INET;
+    server.address.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // 127.0.0.1
+    server.address.sin_port = htons(port);
+
+#ifdef _WIN32
+    if (bind(server.socket_fd,
+             (struct sockaddr *)&server.address,
+             sizeof(server.address)) == SOCKET_ERROR)
+    {
+        printf("bind failed: %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
+#else
+    if (bind(server.socket_fd,
+             (struct sockaddr *)&server.address,
+             sizeof(server.address)) < 0)
+    {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+#endif
 
-    printf("✅ Server running on port %d\n", port);
+    if (listen(server.socket_fd, backlog) < 0)
+    {
+#ifdef _WIN32
+        printf("listen failed: %d\n", WSAGetLastError());
+#else
+        perror("listen failed");
+#endif
+        exit(EXIT_FAILURE);
+    }
+    printf("🔒 Bound to 127.0.0.1:%d\n", port);
+    printf("✅ Forge server running on port %d\n", port);
     return server;
 }
 
+/* =========================================================
+   Server Loop
+   ========================================================= */
 
-void launch_server(ForgeServer *server) {
-    while (1) {
-        printf("নতুন কানেকশনের জন্য অপেক্ষা করছি...\n");
+void launch_server(ForgeServer *server)
+{
+    while (1)
+    {
+        printf("🔌 Client connected\n");
+        fflush(stdout);
 
 #ifdef _WIN32
         SOCKET client_socket = accept(server->socket_fd, NULL, NULL);
-        if (client_socket == INVALID_SOCKET) {
-            perror("Accept failed");
+        if (client_socket == INVALID_SOCKET)
+        {
+            printf("accept failed: %d\n", WSAGetLastError());
             continue;
         }
 #else
-        socklen_t addr_len = sizeof(server->address);
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+
         int client_socket = accept(
             server->socket_fd,
-            (struct sockaddr *)&server->address,
-            &addr_len
-        );
-        if (client_socket < 0) {
-            perror("Accept failed");
+            (struct sockaddr *)&client_addr,
+            &addr_len);
+
+        if (client_socket < 0)
+        {
+            perror("accept failed");
             continue;
         }
 #endif
@@ -106,6 +194,9 @@ void launch_server(ForgeServer *server) {
     }
 }
 
+/* =========================================================
+   Client Handler
+   ========================================================= */
 
 #ifdef _WIN32
 void handle_client(SOCKET client_socket)
@@ -113,28 +204,77 @@ void handle_client(SOCKET client_socket)
 void handle_client(int client_socket)
 #endif
 {
-    char buffer[30000] = {0};
+    char buffer[30000];
+    int bytes_read;
 
 #ifdef _WIN32
-    recv(client_socket, buffer, sizeof(buffer), 0);
+    bytes_read = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
 #else
-    read(client_socket, buffer, sizeof(buffer));
+    bytes_read = read(client_socket, buffer, sizeof(buffer) - 1);
 #endif
 
-    printf("📩 Request:\n%s\n", buffer);
-
-    const char *response =
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/plain\r\n"
-        "Content-Length: 12\r\n"
-        "\r\n"
-        "Hello World!";
-
+    if (bytes_read <= 0)
+    {
 #ifdef _WIN32
-    send(client_socket, response, (int)strlen(response), 0);
+        closesocket(client_socket);
+#else
+        close(client_socket);
+#endif
+        return;
+    }
+
+    buffer[bytes_read] = '\0';
+
+    ForgeHttpRequest req;
+    memset(&req, 0, sizeof(req));
+
+    if (forge_parse_http_request(buffer, &req) != 0)
+    {
+        send_404(client_socket);
+        goto cleanup;
+    }
+
+    const ForgeHttpRequest *creq = &req;
+
+    const ForgeRoute *route =
+        forge_match_route(
+            routes,
+            (int)(sizeof(routes) / sizeof(routes[0])),
+            creq);
+
+    if (route)
+    {
+        route->handler(creq, client_socket);
+    }
+    else
+    {
+        send_404(client_socket);
+    }
+
+cleanup:
+#ifdef _WIN32
     closesocket(client_socket);
 #else
-    write(client_socket, response, strlen(response));
     close(client_socket);
+#endif
+}
+
+/* =========================================================
+   404 Helper
+   ========================================================= */
+
+static void send_404(int client_socket)
+{
+    forge_send_text(client_socket, "404 Not Found", "Not Found\n");
+}
+
+/* =========================================================
+   Shutdown
+   ========================================================= */
+
+void shutdown_server(void)
+{
+#ifdef _WIN32
+    WSACleanup();
 #endif
 }

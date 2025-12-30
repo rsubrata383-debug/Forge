@@ -36,9 +36,11 @@
 #include "sha256.h"
 #include "extractor.h"
 #include "downloader.h"
-#include "forge_manifest.h"
-#include "forge_lock.h"
-#include "forge_pm.h"
+#include "../include/forge_manifest.h"
+#include "../include/forge_lock.h"
+#include "../include/forge_pm.h"
+#include "forge_server.h"
+#include "forge_abi.h"
 /* ---------------- Constants ---------------- */
 #define VENDOR_ROOT "user-app/vendor/forge"
 #define REGISTRY_PATH "user-app/vendor/forge/installed.txt"
@@ -64,6 +66,13 @@ static int is_installed(const char *pkg);
 static int fetch_and_parse_manifest(const char *name, const char *version, ForgeDep deps[], int max);
 static int cmd_update_package(const char *pkg);
 static int fetch_latest_version(const char *name, char *out, size_t sz);
+
+/* ABI guard */
+extern const int forge_abi_version;
+
+STATIC_ASSERT(
+    FORGE_ABI_VERSION == 1,
+    forge_pm_abi_mismatch);
 
 /* ---------------- Dependency Stack ---------------- */
 static int stack_top = 0;
@@ -274,6 +283,8 @@ static int fetch_and_parse_manifest(const char *name, const char *version, Forge
 /* ---------------- Dependency Resolver ---------------- */
 static int install_with_deps(const char *pkg)
 {
+    printf("✅ Forge PM v1.0 - Package Manager\n");
+    printf("Usage: forge-pm.exe init | add | install\n");
     int result = 0;
 
     if (depth > MAX_RECURSION_DEPTH)

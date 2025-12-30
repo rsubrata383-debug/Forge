@@ -3,8 +3,8 @@
 #include "sha256.h"
 #include "extractor.h"
 #include "downloader.h"
-#include "forge_manifest.h"
-#include "forge_lock.h"
+#include "../include/forge_manifest.h"
+#include "../include/forge_lock.h"
 
 // Match EXACT signatures from headers
 bool extract_zip_safe(const char *zip_path, const char *dest_dir, uint64_t max_size)

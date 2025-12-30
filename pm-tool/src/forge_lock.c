@@ -1,4 +1,4 @@
-#include "forge_lock.h"
+#include "../include/forge_lock.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
