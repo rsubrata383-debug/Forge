@@ -1,10 +1,7 @@
 name: CI
-
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+  push: { branches: [main, master] }
+  pull_request: { branches: [main, master] }
 
 jobs:
   test:
@@ -26,28 +23,20 @@ jobs:
           key: ${{ matrix.os }}-build-${{ github.sha }}
           restore-keys: ${{ matrix.os }}-build-
 
-      # LINUX
       - name: Linux deps
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt update
           sudo apt install -y build-essential make gcovr
 
-      # WINDOWS (WinINet is BUILT-IN!)
       - name: Setup MSYS2
         if: matrix.os == 'windows-latest'
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: true
-          install: >-
-            git
-            make
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-winpthreads-git
-            # ✅ WinINet = BUILT-IN to GCC!
+          install: git make mingw-w64-x86_64-gcc mingw-w64-x86_64-winpthreads-git
 
-      # BUILD + TEST
       - name: Build & Test (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
