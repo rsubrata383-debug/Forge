@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+*.exe
+*.o
+*.a
+*.lib
+
+# OS generated
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

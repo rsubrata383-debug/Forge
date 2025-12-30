@@ -1,0 +1,6 @@
+﻿{
+  "name": "pkg",
+  "version": "1.0.0",
+  "dependencies": [],
+  "files": ["README.md"]
+}
