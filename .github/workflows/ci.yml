@@ -2,50 +2,60 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
-  linux:
-    name: Linux (GCC)
-    runs-on: ubuntu-latest
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    name: Build & Test (${{ matrix.os }})
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Cache build
+        uses: actions/cache@v4
+        with:
+          path: build/
+          key: ${{ matrix.os }}-build-${{ github.sha }}
+          restore-keys: ${{ matrix.os }}-build-
+
+      # LINUX
+      - name: Linux deps
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt update
-          sudo apt install -y build-essential make
+          sudo apt install -y build-essential make gcovr
 
-      - name: Build & Test
+      # WINDOWS
+      - name: Setup MSYS2
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git make mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-winpthreads-git
+            mingw-w64-x86_64-wininet-git
+
+      # BUILD + TEST
+      - name: Build & Test (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           make clean
           make all
           make test
           make integration
 
-  windows:
-    name: Windows (MSYS2 / MinGW)
-    runs-on: windows-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            git
-            make
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-winpthreads-git
-            mingw-w64-x86_64-wininet-git
-
-      - name: Build & Test
+      - name: Build & Test (Windows)
+        if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
           make clean
